@@ -138,7 +138,7 @@ module Haml
 
         if flat?
           text = @line.full.dup
-          text = "" unless text.gsub!(/^#{@flat_spaces}/, '')
+          text = "" unless text.delete_prefix!(@flat_spaces)
           @filter_buffer << "#{text}\n"
           @line = @next_line
           next
@@ -182,7 +182,7 @@ module Haml
 
       tabs = line.whitespace.length / @indentation.length
       return tabs if line.whitespace == @indentation * tabs
-      return @template_tabs + 1 if flat? && /^#{@flat_spaces}/.match?(line.whitespace)
+      return @template_tabs + 1 if flat? && line.whitespace.start_with?(@flat_spaces)
 
       message = Error.message(:inconsistent_indentation,
         human_indentation(line.whitespace),
@@ -314,8 +314,8 @@ module Haml
     end
 
     def block_keyword(text)
-      return unless (keyword = text.scan(BLOCK_KEYWORD_REGEX)[0])
-      keyword[0] || keyword[1]
+      return unless (m = text.match(BLOCK_KEYWORD_REGEX))
+      m[1] || m[2]
     end
 
     def push(node)
@@ -523,7 +523,8 @@ module Haml
     # Renders an XHTML doctype or XML shebang.
     def doctype(text)
       raise SyntaxError.new(Error.message(:illegal_nesting_header), @next_line.index) if block_opened?
-      version, type, encoding = text[3..-1].strip.downcase.scan(DOCTYPE_REGEX)[0]
+      m = text[3..-1].strip.downcase.match(DOCTYPE_REGEX)
+      version, type, encoding = m[1], m[2], m[3] if m
       ParseNode.new(:doctype, @line.index + 1, :version => version, :type => type, :encoding => encoding)
     end
 
@@ -590,11 +591,10 @@ module Haml
         case type
         when '.'
           if attributes[CLASS_KEY]
-            attributes[CLASS_KEY] += " "
+            attributes[CLASS_KEY] << ' ' << property
           else
-            attributes[CLASS_KEY] = ""
+            attributes[CLASS_KEY] = property.dup
           end
-          attributes[CLASS_KEY] += property
         when '#'; attributes[ID_KEY] = property
         end
       end
@@ -625,10 +625,10 @@ module Haml
 
     # Parses a line into tag_name, attributes, attributes_hash, object_ref, action, value
     def parse_tag(text)
-      match = text.scan(/%([-:\w]+)([-:\w.#\@]*)(.+)?/)[0]
-      raise SyntaxError.new(Error.message(:invalid_tag, text)) unless match
+      m = text.match(/%([-:\w]+)([-:\w.#\@]*)(.+)?/)
+      raise SyntaxError.new(Error.message(:invalid_tag, text)) unless m
 
-      tag_name, attributes, rest = match
+      tag_name, attributes, rest = m[1], m[2], m[3]
 
       if !attributes.empty? && /[.#](\.|#|\z)/.match?(attributes)
         raise SyntaxError.new(Error.message(:illegal_element))
@@ -655,7 +655,8 @@ module Haml
       end
 
       if rest && !rest.empty?
-        nuke_whitespace, action, value = rest.scan(/(<>|><|[><])?([=\/\~&!])?(.*)?/)[0]
+        m = rest.match(/(<>|><|[><])?([=\/\~&!])?(.*)?/)
+        nuke_whitespace, action, value = m[1], m[2], m[3] if m
         if nuke_whitespace
           nuke_outer_whitespace = nuke_whitespace.include? '>'
           nuke_inner_whitespace = nuke_whitespace.include? '<'
@@ -734,7 +735,7 @@ module Haml
       end
 
       static_attributes = {}
-      dynamic_attributes = "{".dup
+      dynamic_attributes = String.new("{")
       attributes.each do |name, (type, val)|
         if type == :static
           static_attributes[name] = val
@@ -796,7 +797,7 @@ module Haml
     end
 
     def closes_flat?(line)
-      line && !line.text.empty? && !(/^#{@flat_spaces}/.match?(line.full))
+      line && !line.text.empty? && !line.full.start_with?(@flat_spaces)
     end
 
     def handle_multiline(line)
@@ -847,7 +848,7 @@ module Haml
 
     # Unlike #balance, this balances Ripper tokens to balance something like `{ a: "}" }` correctly.
     def balance_tokens(buf, start, finish, count: 0)
-      text = ''.dup
+      text = String.new
       Ripper.lex(buf).each do |_, token, str|
         text << str
         case token
@@ -858,7 +859,7 @@ module Haml
         end
 
         if count == 0
-          return text, buf.sub(text, '')
+          return text, buf.byteslice(text.bytesize..)
         end
       end
       raise SyntaxError.new(Error.message(:unbalanced_brackets))
@@ -871,7 +872,11 @@ module Haml
     # Same semantics as block_opened?, except that block_opened? uses Line#tabs,
     # which doesn't interact well with filter lines
     def filter_opened?
-      (@indentation ? /^#{@indentation * (@template_tabs + 1)}/ : /^\s/).match?(@next_line.full)
+      if @indentation
+        @next_line.full.start_with?(@indentation * (@template_tabs + 1))
+      else
+        /^\s/.match?(@next_line.full)
+      end
     end
 
     def flat?
@@ -893,7 +898,7 @@ module Haml
       # @param from [{String => Object}] The attribute hash to merge from
       # @return [{String => String,Hash}] `to`, after being merged
       def merge_attributes!(to, from)
-        from.keys.each do |key|
+        from.each_key do |key|
           to[key] = merge_value(key, to[key], from[key])
         end
         to
@@ -906,10 +911,7 @@ module Haml
         return '' if (value.respond_to?(:empty?) && value.empty?)
 
         if value.is_a?(Array)
-          value = value.flatten
-          value.map! {|item| item ? item.to_s : nil}
-          value.compact!
-          value = value.join(separator)
+          value = value.flatten.filter_map { |item| item.to_s if item }.join(separator)
         else
           value = value ? value.to_s : nil
         end

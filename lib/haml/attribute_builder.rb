@@ -5,27 +5,26 @@ module Haml::AttributeBuilder
   class << self
     def build(escape_attrs, quote, format, object_ref, *hashes)
       hashes << Haml::ObjectRef.parse(object_ref) if object_ref
-      buf  = []
+      buf  = String.new(capacity: 256)
       hash = merge_all_attrs(hashes)
 
       keys = hash.keys.sort!
       keys.each do |key|
-        case key
-        when 'id'
-          buf << " id=#{quote}#{build_id(escape_attrs, *hash[key])}#{quote}"
-        when 'class'
-          buf << " class=#{quote}#{build_class(escape_attrs, *hash[key])}#{quote}"
-        when 'data'
+        if key == 'id'
+          buf << ' id=' << quote << build_id(escape_attrs, *hash[key]) << quote
+        elsif key == 'class'
+          buf << ' class=' << quote << build_class(escape_attrs, *hash[key]) << quote
+        elsif key == 'data'
           buf << build_data(escape_attrs, quote, format, *hash[key])
-        when 'aria'
+        elsif key == 'aria'
           buf << build_aria(escape_attrs, quote, format, *hash[key])
-        when *Haml::BOOLEAN_ATTRIBUTES, /\Adata-/, /\Aaria-/
+        elsif Haml::BOOLEAN_ATTRIBUTES.include?(key) || key.start_with?('data-', 'aria-')
           build_boolean!(escape_attrs, quote, format, buf, key, hash[key])
         else
-          buf << " #{key}=#{quote}#{escape_html(escape_attrs, hash[key].to_s)}#{quote}"
+          buf << ' ' << key << '=' << quote << escape_html(escape_attrs, hash[key].to_s) << quote
         end
       end
-      buf.join
+      buf
     end
 
     def build_id(escape_attrs, *values)
@@ -52,9 +51,9 @@ module Haml::AttributeBuilder
       values.each do |value|
         case
         when value.is_a?(String)
-          classes += value.split(' ')
+          classes.concat(value.split(' '))
         when value.is_a?(Array)
-          classes += value.flatten.select { |v| v }
+          value.flatten.each { |v| classes << v if v }
         when value
           classes << value.to_s
         end
@@ -73,7 +72,7 @@ module Haml::AttributeBuilder
     private
 
     def build_data_attribute(key, escape_attrs, quote, format, *hashes)
-      attrs = []
+      attrs = String.new(capacity: 128)
       if hashes.size > 1 && hashes.all? { |h| h.is_a?(Hash) }
         data_value = merge_all_attrs(hashes)
       else
@@ -81,23 +80,26 @@ module Haml::AttributeBuilder
       end
       hash = flatten_attributes(key => data_value)
 
-      hash.sort_by(&:first).each do |key, value|
+      keys = hash.keys.sort!
+      keys.each do |key|
+        value = hash[key]
         case value
         when true
           build_boolean!(escape_attrs, quote, format, attrs, key, value)
         when nil, false
           # noop
         else
-          attrs << " #{key}=#{quote}#{escape_html(escape_attrs, value.to_s)}#{quote}"
+          attrs << ' ' << key << '=' << quote << escape_html(escape_attrs, value.to_s) << quote
         end
       end
-      attrs.join
+      attrs
     end
 
     def flatten_attributes(attributes)
       flattened = {}
 
       attributes.each do |key, value|
+        key = key.to_s
         case value
         when attributes
         when Hash
@@ -138,16 +140,15 @@ module Haml::AttributeBuilder
     def build_boolean!(escape_attrs, quote, format, buf, key, value)
       case value
       when true
-        case format
-        when :xhtml
-          buf << " #{key}=#{quote}#{key}#{quote}"
+        if format == :xhtml
+          buf << ' ' << key << '=' << quote << key << quote
         else
-          buf << " #{key}"
+          buf << ' ' << key
         end
       when false, nil
         # omitted
       else
-        buf << " #{key}=#{quote}#{escape_html(escape_attrs, value)}#{quote}"
+        buf << ' ' << key << '=' << quote << escape_html(escape_attrs, value) << quote
       end
     end
 
