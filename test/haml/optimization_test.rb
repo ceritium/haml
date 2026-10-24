@@ -239,6 +239,39 @@ describe 'optimization' do
       # Was 0: tr allocated a String per key per build even with nothing to replace.
       assert_operator saved, :>, RUNS / 2
     end
+
+    it 'gives a nil key the prefix itself next to other keys' do
+      # Was an ArgumentError: the prefix was a Symbol and the other keys Strings, so they did not sort.
+      assert_equal ' data="3" data-b="4"', build(data: { nil => 3, b: 4 })
+      assert_equal ' aria="3" aria-b="4"', build(aria: { nil => 3, b: 4 })
+      assert_equal ' data-a="1" data-a-b="2"', build(data: { a: { nil => 1, b: 2 } })
+    end
+
+    it 'flattens a nested hash without an intermediate Hash per level' do
+      skip_unless_cruby('allocation counting')
+      flat   = { 'data' => { 'a-b-c' => 1 } }
+      nested = { 'data' => { 'a' => { 'b' => { 'c' => 1 } } } }
+      build(flat)
+      build(nested)
+
+      extra = allocations { build(nested) } - allocations { build(flat) }
+      # Was 4 * RUNS: each level built its own Hash and String keys, copied into the level above.
+      assert_operator extra, :<=, 2 * RUNS
+    end
+  end
+
+  describe 'attribute buffer' do
+    it 'appends each attribute to one String' do
+      skip_unless_cruby('allocation counting')
+      one  = { 'title' => 'x' }
+      four = { 'title' => 'x', 'lang' => 'y', 'dir' => 'z', 'rel' => 'w' }
+      build(one)
+      build(four)
+
+      extra = allocations { build(four) } - allocations { build(one) }
+      # Was 4 * RUNS: each attribute was interpolated into its own String, then joined.
+      assert_operator extra, :<, 2 * RUNS
+    end
   end
 
   # test_helper loads rails before haml, so use_html_safe defaults to true here.
