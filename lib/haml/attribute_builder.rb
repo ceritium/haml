@@ -12,9 +12,9 @@ module Haml::AttributeBuilder
       keys.each do |key|
         case key
         when 'id'
-          buf << ' id=' << quote << build_id_values(escape_attrs, hash[key]) << quote
+          append_attribute!(buf, quote, 'id', build_id_values(escape_attrs, hash[key]))
         when 'class'
-          buf << ' class=' << quote << build_class(escape_attrs, *hash[key]) << quote
+          append_attribute!(buf, quote, 'class', build_class(escape_attrs, *hash[key]))
         when 'data'
           append_data_attribute!(buf, 'data', escape_attrs, quote, format, hash[key])
         when 'aria'
@@ -23,7 +23,7 @@ module Haml::AttributeBuilder
           if boolean_attribute?(key)
             build_boolean!(escape_attrs, quote, format, buf, key, hash[key])
           else
-            buf << ' ' << key << '=' << quote << escape_html(escape_attrs, hash[key].to_s) << quote
+            append_attribute!(buf, quote, key, escape_html(escape_attrs, hash[key].to_s))
           end
         end
       end
@@ -104,7 +104,7 @@ module Haml::AttributeBuilder
         if value == true
           build_boolean!(escape_attrs, quote, format, buf, name, value)
         else
-          buf << ' ' << name << '=' << quote << escape_html(escape_attrs, value.to_s) << quote
+          append_attribute!(buf, quote, name, escape_html(escape_attrs, value.to_s))
         end
       end
       buf
@@ -160,15 +160,20 @@ module Haml::AttributeBuilder
       when true
         case format
         when :xhtml
-          buf << ' ' << key << '=' << quote << key << quote
+          append_attribute!(buf, quote, key, key)
         else
           buf << ' ' << key
         end
       when false, nil
         # omitted
       else
-        buf << ' ' << key << '=' << quote << escape_html(escape_attrs, value.to_s) << quote
+        append_attribute!(buf, quote, key, escape_html(escape_attrs, value.to_s))
       end
+    end
+
+    # Appends ` name="value"` to buf. The value must already be escaped.
+    def append_attribute!(buf, quote, name, value)
+      buf << ' ' << name << '=' << quote << value << quote
     end
 
     def escape_html(escape_attrs, str)
