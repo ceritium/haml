@@ -12,9 +12,9 @@ module Haml::AttributeBuilder
       keys.each do |key|
         case key
         when 'id'
-          append_attribute!(buf, quote, 'id', build_id_values(escape_attrs, hash[key]))
+          append_attribute!(buf, 'id', build_id_values(escape_attrs, hash[key]), quote)
         when 'class'
-          append_attribute!(buf, quote, 'class', build_class(escape_attrs, *hash[key]))
+          append_attribute!(buf, 'class', build_class(escape_attrs, *hash[key]), quote)
         when 'data'
           append_data_attribute!(buf, 'data', escape_attrs, quote, format, hash[key])
         when 'aria'
@@ -23,7 +23,7 @@ module Haml::AttributeBuilder
           if boolean_attribute?(key)
             build_boolean!(escape_attrs, quote, format, buf, key, hash[key])
           else
-            append_attribute!(buf, quote, key, escape_html(escape_attrs, hash[key].to_s))
+            append_attribute!(buf, key, escape_html(escape_attrs, hash[key].to_s), quote)
           end
         end
       end
@@ -104,7 +104,7 @@ module Haml::AttributeBuilder
         if value == true
           build_boolean!(escape_attrs, quote, format, buf, name, value)
         else
-          append_attribute!(buf, quote, name, escape_html(escape_attrs, value.to_s))
+          append_attribute!(buf, name, escape_html(escape_attrs, value.to_s), quote)
         end
       end
       buf
@@ -160,19 +160,19 @@ module Haml::AttributeBuilder
       when true
         case format
         when :xhtml
-          append_attribute!(buf, quote, key, key)
+          append_attribute!(buf, key, key, quote)
         else
           buf << ' ' << key
         end
       when false, nil
         # omitted
       else
-        append_attribute!(buf, quote, key, escape_html(escape_attrs, value.to_s))
+        append_attribute!(buf, key, escape_html(escape_attrs, value.to_s), quote)
       end
     end
 
     # Appends ` name="value"` to buf. The value must already be escaped.
-    def append_attribute!(buf, quote, name, value)
+    def append_attribute!(buf, name, value, quote)
       buf << ' ' << name << '=' << quote << value << quote
     end
 
