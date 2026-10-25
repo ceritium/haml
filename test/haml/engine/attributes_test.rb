@@ -151,6 +151,7 @@ describe Haml::Engine do
 
     it { assert_haml(%q|%a{ data: true }|) }
     it { assert_haml(%q|%a{ data: { nil => true } }|) }
+    it { assert_render(%Q|<a data="3" data-b="4"></a>\n|, %q|%a{ data: hash }|, locals: { hash: { nil => 3, b: 4 } }) }
     it { assert_haml(%q|%a{ data: { false => true } }|) }
 
     it { skip; assert_haml(%q|%a{ { data: { 'foo-bar' => 1 } }, data: { foo: { bar: 2 } } }|) }

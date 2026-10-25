@@ -65,11 +65,11 @@ module Haml::AttributeBuilder
     end
 
     def build_data(escape_attrs, quote, format, *hashes)
-      build_data_attribute(:data, escape_attrs, quote, format, *hashes)
+      build_data_attribute('data', escape_attrs, quote, format, *hashes)
     end
 
     def build_aria(escape_attrs, quote, format, *hashes)
-      build_data_attribute(:aria, escape_attrs, quote, format, *hashes)
+      build_data_attribute('aria', escape_attrs, quote, format, *hashes)
     end
 
     private
