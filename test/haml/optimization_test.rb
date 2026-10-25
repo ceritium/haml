@@ -217,7 +217,6 @@ describe 'optimization' do
     end
 
     it 'gives a nil key the prefix itself next to other keys' do
-      # Was an ArgumentError: the prefix was a Symbol and the other keys Strings, so they did not sort.
       assert_equal ' data="3" data-b="4"', build(data: { nil => 3, b: 4 })
       assert_equal ' aria="3" aria-b="4"', build(aria: { nil => 3, b: 4 })
       assert_equal ' data="3" data-b="4"', Haml::AttributeBuilder.build_data(true, '"', :html, { nil => 3, b: 4 })
